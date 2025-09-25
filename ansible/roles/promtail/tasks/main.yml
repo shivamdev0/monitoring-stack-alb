@@ -1,0 +1,96 @@
+---
+# Promtail config (push to monitoring private IP on /loki/api/v1/push)
+
+- name: Ensure promtail user
+  user:
+    name: promtail
+    system: yes
+    shell: /sbin/nologin
+
+- name: Add promtail to adm group (read /var/log/*.log)
+  user:
+    name: promtail
+    groups: adm
+    append: yes
+
+- name: Create promtail dir
+  file:
+    path: /etc/promtail
+    state: directory
+    owner: promtail
+    group: promtail
+    mode: "0755"
+
+- name: Download Promtail
+  get_url:
+    url: "https://github.com/grafana/loki/releases/download/v2.9.6/promtail-linux-amd64.zip"
+    dest: /tmp/promtail.zip
+    mode: "0644"
+
+- name: Extract Promtail
+  unarchive:
+    src: /tmp/promtail.zip
+    dest: /usr/local/bin/
+    remote_src: yes
+    mode: "0755"
+
+- name: Write /etc/promtail/config.yml
+  copy:
+    dest: /etc/promtail/config.yml
+    owner: promtail
+    group: promtail
+    mode: "0644"
+    content: |
+      server:
+        http_listen_port: 9080
+        grpc_listen_port: 0
+
+      clients:
+        - url: http://{{ hostvars[groups['role_monitoring'][0]].private_ip_address }}:3100/loki/api/v1/push
+
+      positions:
+        filename: /var/log/positions.yaml
+
+      scrape_configs:
+        - job_name: varlogs
+          static_configs:
+            - targets: [localhost]
+              labels:
+                job: varlogs
+                host: {{ inventory_hostname }}
+                __path__: /var/log/*.log
+        # Optional: enable journald on AL2023
+        # - job_name: systemd-journal
+        #   journal:
+        #     path: /var/log/journal
+        #   labels:
+        #     job: systemd-journal
+        #     host: {{ inventory_hostname }}
+  notify: Restart Promtail
+
+- name: Install promtail systemd unit
+  copy:
+    dest: /etc/systemd/system/promtail.service
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Promtail
+      After=network.target
+
+      [Service]
+      User=promtail
+      Group=promtail
+      ExecStart=/usr/local/bin/promtail-linux-amd64 -config.file=/etc/promtail/config.yml
+      Restart=always
+
+      [Install]
+      WantedBy=multi-user.target
+  notify:
+    - Daemon Reload
+    - Restart Promtail
+
+- name: Enable Promtail
+  systemd:
+    name: promtail
+    enabled: yes
+

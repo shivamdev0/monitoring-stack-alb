@@ -1,0 +1,5 @@
+- hosts: role_client
+  become: yes
+  roles:
+    - node_exporter
+    - promtail

@@ -1,0 +1,142 @@
+---
+# Loki install + config (0.0.0.0:3100, filesystem storage)
+
+- name: Create loki user
+  user:
+    name: loki
+    system: yes
+    shell: /sbin/nologin
+
+- name: Create Loki config directory
+  file:
+    path: /etc/loki
+    state: directory
+    owner: loki
+    group: loki
+    mode: "0755"
+
+- name: Create Loki data directory
+  file:
+    path: /data/loki
+    state: directory
+    owner: loki
+    group: loki
+    mode: "0755"
+
+- name: Create Loki subdirectories
+  file:
+    path: "/data/loki/{{ item }}"
+    state: directory
+    owner: loki
+    group: loki
+    mode: "0755"
+  loop:
+    - index
+    - cache
+    - chunks
+    - wal
+    - compactor
+
+- name: Download Loki
+  get_url:
+    url: "https://github.com/grafana/loki/releases/download/v2.9.6/loki-linux-amd64.zip"
+    dest: /tmp/loki.zip
+    mode: "0644"
+
+- name: Extract Loki
+  unarchive:
+    src: /tmp/loki.zip
+    dest: /usr/local/bin/
+    remote_src: yes
+    mode: "0755"
+
+- name: Write /etc/loki/config.yml
+  copy:
+    dest: /etc/loki/config.yml
+    owner: loki
+    group: loki
+    mode: "0644"
+    content: |
+      auth_enabled: false
+
+      server:
+        http_listen_address: 0.0.0.0
+        http_listen_port: 3100
+        grpc_listen_port: 0
+
+      ingester:
+        wal:
+          enabled: true
+          dir: /data/loki/wal
+        lifecycler:
+          address: 127.0.0.1
+          ring:
+            kvstore:
+              store: inmemory
+            replication_factor: 1
+          final_sleep: 0s
+        chunk_idle_period: 5m
+        chunk_retain_period: 30s
+        max_transfer_retries: 0
+
+      schema_config:
+        configs:
+          - from: 2020-10-24
+            store: boltdb-shipper
+            object_store: filesystem
+            schema: v11
+            index:
+              prefix: index_
+              period: 24h
+
+      storage_config:
+        boltdb_shipper:
+          active_index_directory: /data/loki/index
+          cache_location: /data/loki/cache
+          shared_store: filesystem
+        filesystem:
+          directory: /data/loki/chunks
+
+      compactor:
+        working_directory: /data/loki/compactor
+        shared_store: filesystem
+
+      limits_config:
+        ingestion_rate_mb: 10
+        ingestion_burst_size_mb: 20
+        max_cache_freshness_per_query: 10m
+
+      chunk_store_config:
+        max_look_back_period: 0s
+
+      table_manager:
+        retention_deletes_enabled: true
+        retention_period: 24h
+  notify: Restart Loki
+
+- name: Install Loki systemd unit
+  copy:
+    dest: /etc/systemd/system/loki.service
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Loki
+      After=network.target
+
+      [Service]
+      User=loki
+      Group=loki
+      ExecStart=/usr/local/bin/loki-linux-amd64 -config.file=/etc/loki/config.yml
+      Restart=always
+
+      [Install]
+      WantedBy=multi-user.target
+  notify:
+    - Daemon Reload
+    - Restart Loki
+
+- name: Enable Loki
+  systemd:
+    name: loki
+    enabled: yes
+
