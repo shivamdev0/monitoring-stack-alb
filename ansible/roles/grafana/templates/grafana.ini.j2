@@ -1,0 +1,10 @@
+[server]
+domain = {{ grafana_domain }}
+root_url = {{ grafana_root_url }}
+serve_from_sub_path = {{ grafana_serve_from_sub_path | ternary('true','false') }}
+enforce_domain = true
+
+[security]
+cookie_secure = true
+cookie_samesite = lax
+

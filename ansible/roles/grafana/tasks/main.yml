@@ -1,5 +1,4 @@
 ---
-# 1️⃣ Add Grafana yum repo
 - name: Add Grafana repo
   yum_repository:
     name: grafana
@@ -7,21 +6,36 @@
     baseurl: https://packages.grafana.com/oss/rpm
     gpgcheck: no
 
-# 2️⃣ Install Grafana
 - name: Install Grafana
   yum:
     name: grafana
     state: present
 
-# 3️⃣ Enable & start Grafana service
+- name: Ensure grafana config directory exists
+  file:
+    path: /etc/grafana
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+# Configure grafana.ini from template
+- name: Configure grafana.ini (domain/root_url)
+  template:
+    src: grafana.ini.j2
+    dest: /etc/grafana/grafana.ini
+    owner: root
+    group: root
+    mode: '0644'
+  notify: restart grafana
+
 - name: Enable & start Grafana
   systemd:
     name: grafana-server
     enabled: yes
     state: started
 
-# 4️⃣ Wait until Grafana API is up
-- name: Wait for Grafana to start
+- name: Wait for Grafana to start (local bind)
   uri:
     url: "http://localhost:3000/api/health"
     method: GET
@@ -31,7 +45,7 @@
   delay: 5
   until: grafana_status.status == 200
 
-# 5️⃣ Set new Grafana admin password (first run only)
+# Set new Grafana admin password (first run only)
 - name: Configure Grafana admin password
   uri:
     url: "http://localhost:3000/api/admin/users/1/password"
@@ -49,7 +63,7 @@
   failed_when: false
   changed_when: grafana_pass_reset.status == 200
 
-# 6️⃣ Add Prometheus datasource (default)
+# Add Prometheus datasource (default)
 - name: Add Prometheus datasource
   uri:
     url: "http://localhost:3000/api/datasources"
@@ -66,9 +80,9 @@
       access: "proxy"
       url: "http://localhost:9090"
       isDefault: true
-    status_code: [200, 409]  # 409 if already exists
+    status_code: [200, 409]
 
-# 7️⃣ Add CloudWatch datasource (optional)
+# Add CloudWatch datasource (optional)
 - name: Configure Grafana CloudWatch datasource
   uri:
     url: "http://localhost:3000/api/datasources"
@@ -84,11 +98,11 @@
       type: "cloudwatch"
       access: "proxy"
       jsonData:
-        authType: "default"   # Uses EC2 IAM Role
+        authType: "default"
         defaultRegion: "me-central-1"
     status_code: [200, 409]
 
-# 8️⃣ Add Loki datasource
+# Add Loki datasource
 - name: Configure Grafana Loki datasource
   uri:
     url: "http://localhost:3000/api/datasources"
@@ -105,5 +119,5 @@
       access: "proxy"
       url: "http://localhost:3100"
       isDefault: false
-    status_code: [200, 409]  # 409 if already exists
+    status_code: [200, 409]
 

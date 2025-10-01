@@ -28,4 +28,12 @@ scrape_configs:
 {% for host in groups['role_client'] | default([]) %}
           - "{{ hostvars[host]['private_ip_address'] }}:9080"
 {% endfor %}
+  
 
+  # Scrape Apache Exporter metrics from all clients (PRIVATE IP)
+  - job_name: "apache_exporter"
+    static_configs:
+      - targets:
+{% for host in groups['role_client'] | default([]) %}
+          - "{{ hostvars[host]['private_ip_address'] }}:9117"
+{% endfor %}

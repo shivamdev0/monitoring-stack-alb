@@ -1,3 +1,8 @@
+
+output "alb_dns_name" {
+  value = aws_lb.monitoring_alb.dns_name
+}
+
 output "monitoring_server_ip" {
   description = "Public IP of the monitoring server"
   value       = aws_instance.monitoring.public_ip

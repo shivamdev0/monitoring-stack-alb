@@ -40,3 +40,9 @@ variable "subnet_ids" {
   default     = []
 }
 
+variable "monitor_domain" {
+  description = "Monitoring FQDN"
+  type        = string
+  default     = "amzmonitor.jeebly.com"
+}
+

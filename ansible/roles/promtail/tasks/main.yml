@@ -49,7 +49,7 @@
         - url: http://{{ hostvars[groups['role_monitoring'][0]].private_ip_address }}:3100/loki/api/v1/push
 
       positions:
-        filename: /var/log/positions.yaml
+        filename: /var/lib/promtail/positions.yaml
 
       scrape_configs:
         - job_name: varlogs
