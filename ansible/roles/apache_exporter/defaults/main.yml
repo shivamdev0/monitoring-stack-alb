@@ -1,0 +1,15 @@
+---
+apache_exporter_version: "0.13.4"
+apache_exporter_arch: "linux-amd64"
+apache_exporter_tarball: "apache_exporter-{{ apache_exporter_version }}.{{ apache_exporter_arch }}.tar.gz"
+apache_exporter_download_url: "https://github.com/Lusitaniae/apache_exporter/releases/download/v{{ apache_exporter_version }}/{{ apache_exporter_tarball }}"
+
+apache_exporter_install_dir: "/opt/apache_exporter"
+apache_exporter_tmp_dir: "/tmp/apache_exporter_install"
+apache_exporter_bin: "/usr/local/bin/apache_exporter"
+apache_exporter_metrics_port: 9117
+apache_exporter_service_name: "apache_exporter"
+apache_exporter_user: root
+apache_exporter_group: root
+apache_exporter_scrape_uri: "http://127.0.0.1/server-status?auto"
+

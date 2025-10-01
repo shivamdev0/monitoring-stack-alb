@@ -1,0 +1,105 @@
+---
+- name: Ensure install dir exists
+  file:
+    path: "{{ apache_exporter_install_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Ensure temporary dir is clean
+  file:
+    path: "{{ apache_exporter_tmp_dir }}"
+    state: absent
+  ignore_errors: yes
+
+- name: Create temporary dir
+  file:
+    path: "{{ apache_exporter_tmp_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Download apache_exporter tarball to remote /tmp
+  get_url:
+    url: "{{ apache_exporter_download_url }}"
+    dest: "{{ apache_exporter_tmp_dir }}/{{ apache_exporter_tarball }}"
+    mode: "0644"
+  register: download_result
+  until: download_result is succeeded
+  retries: 3
+  delay: 5
+
+# 🧹 Remove any old apache_exporter binary
+- name: Remove any old apache_exporter binary from /usr/local/bin
+  file:
+    path: "{{ apache_exporter_bin }}"
+    state: absent
+
+# 🧹 Remove any old apache_exporter directories in /opt (just in case)
+- name: Remove any old apache_exporter directories
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ apache_exporter_install_dir }}/apache_exporter-0.11.0.linux-amd64"
+    - "{{ apache_exporter_install_dir }}/apache_exporter-0.13.3.linux-amd64"
+    - "{{ apache_exporter_install_dir }}/apache_exporter"
+
+- name: Extract apache_exporter archive on remote
+  unarchive:
+    src: "{{ apache_exporter_tmp_dir }}/{{ apache_exporter_tarball }}"
+    dest: "{{ apache_exporter_tmp_dir }}"
+    remote_src: yes
+  register: unarchive_result
+
+# ✅ Safe variant: use find module to locate extracted dir
+- name: Find extracted directory on remote
+  find:
+    paths: "{{ apache_exporter_tmp_dir }}"
+    file_type: directory
+    patterns: "apache_exporter-*{{ apache_exporter_arch }}"
+    recurse: no
+  register: find_result
+
+- name: Fail if extracted dir not found
+  fail:
+    msg: "Extracted apache_exporter dir not found in {{ apache_exporter_tmp_dir }}"
+  when: find_result.matched == 0
+
+- name: Copy apache_exporter binary to /usr/local/bin
+  copy:
+    src: "{{ find_result.files[0].path }}/apache_exporter"
+    dest: "{{ apache_exporter_bin }}"
+    mode: "0755"
+    owner: root
+    group: root
+    remote_src: yes
+  notify:
+    - daemon-reload
+    - restart apache_exporter
+
+- name: Cleanup temporary dir
+  file:
+    path: "{{ apache_exporter_tmp_dir }}"
+    state: absent
+  ignore_errors: yes
+
+- name: Ensure apache_exporter systemd service
+  template:
+    src: apache_exporter.service.j2
+    dest: "/etc/systemd/system/{{ apache_exporter_service_name }}.service"
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - daemon-reload
+    - restart apache_exporter
+
+- name: Ensure apache_exporter service enabled and started
+  systemd:
+    name: "{{ apache_exporter_service_name }}"
+    enabled: yes
+    state: started
+

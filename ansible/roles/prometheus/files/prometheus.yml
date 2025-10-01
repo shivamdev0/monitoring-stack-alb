@@ -8,6 +8,8 @@ scrape_configs:
     static_configs:
       - targets: ["localhost:9090"]
 
+
+
   # Node Exporter on EC2 instances (discover by tags)
   - job_name: ec2-nodes
     ec2_sd_configs:
@@ -24,10 +26,45 @@ scrape_configs:
         replacement: ${1}:9100
     metrics_path: /metrics
 
+
+  # Apache Exporter on EC2 instances (discover by tags)
+  - job_name: ec2-apache-exporter
+    ec2_sd_configs:
+      - region: me-central-1
+    relabel_configs:
+      - source_labels: [__meta_ec2_tag_Monitoring]
+       # Apache Exporter on EC2 instances (discover by tags)
+  - job_name: ec2-apache-exporter
+    ec2_sd_configs:
+      - region: me-central-1
+    relabel_configs:
+      - source_labels: [__meta_ec2_tag_Monitoring]
+        regex: enabled
+        action: keep
+      - source_labels: [__meta_ec2_tag_Role]
+        regex: client
+        action: keep
+      - source_labels: [__meta_ec2_private_ip]
+        target_label: __address__
+        replacement: ${1}:9117
+    metrics_path: /metrics regex: enabled
+        action: keep
+      - source_labels: [__meta_ec2_tag_Role]
+        regex: client
+        action: keep
+      - source_labels: [__meta_ec2_private_ip]
+        target_label: __address__
+        replacement: ${1}:9117
+    metrics_path: /metrics
+
+
+
   # Loki metrics (on monitoring server)
   - job_name: loki
     static_configs:
       - targets: ["localhost:3100"]
+
+
 
   # Promtail metrics from EC2 clients (optional but useful)
   - job_name: promtail

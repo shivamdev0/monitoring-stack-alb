@@ -1,0 +1,14 @@
+---
+# Default variables for apache role
+
+# Package name depends on OS family
+apache_pkg: "{{ 'httpd' if ansible_os_family == 'RedHat' else 'apache2' }}"
+
+# Service name depends on OS family
+apache_service: "{{ 'httpd' if ansible_os_family == 'RedHat' else 'apache2' }}"
+
+# Config directory (for server-status.conf)
+apache_conf_dir: "{{ '/etc/httpd' if ansible_os_family == 'RedHat' else '/etc/apache2' }}"
+
+# Monitoring server IP allowed to access /server-status (optional)
+monitoring_server_ip: "{{ hostvars[groups['role_monitoring'][0]].private_ip_address if groups['role_monitoring'] is defined else '' }}"

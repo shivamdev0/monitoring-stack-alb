@@ -1,0 +1,6 @@
+---
+- name: Reload Apache
+  service:
+    name: "{{ apache_service }}"
+    state: reloaded
+

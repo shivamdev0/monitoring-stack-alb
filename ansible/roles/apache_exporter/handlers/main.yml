@@ -1,0 +1,10 @@
+---
+- name: daemon-reload
+  systemd:
+    daemon_reload: yes
+
+- name: restart apache_exporter
+  systemd:
+    name: "{{ apache_exporter_service_name }}"
+    state: restarted
+

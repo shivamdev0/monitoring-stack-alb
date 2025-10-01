@@ -1,0 +1,16 @@
+[Unit]
+Description=Apache Exporter
+After=network.target
+
+[Service]
+User={{ apache_exporter_user }}
+Group={{ apache_exporter_group }}
+ExecStart={{ apache_exporter_bin }} \
+  --scrape_uri="{{ apache_exporter_scrape_uri }}" \
+  --telemetry.address=":{{ apache_exporter_metrics_port }}"
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+

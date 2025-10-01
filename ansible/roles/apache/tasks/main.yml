@@ -1,0 +1,58 @@
+---
+# Install Apache
+- name: Install Apache
+  package:
+    name: "{{ apache_pkg }}"
+    state: present
+
+# Ensure service is enabled and running
+- name: Ensure Apache service is enabled and started
+  service:
+    name: "{{ apache_service }}"
+    state: started
+    enabled: yes
+
+# Remove legacy server-status.conf (if present) to avoid duplicates
+- name: Remove legacy server-status.conf (RHEL path)
+  file:
+    path: /etc/httpd/conf.d/server-status.conf
+    state: absent
+  when: ansible_os_family == "RedHat"
+  ignore_errors: yes
+
+- name: Remove legacy status.conf (Debian path)
+  file:
+    path: /etc/apache2/conf-available/status.conf
+    state: absent
+  when: ansible_os_family == "Debian"
+  ignore_errors: yes
+
+# Deploy canonical status config
+- name: Deploy Apache server-status config (RHEL family)
+  template:
+    src: server-status.conf.j2
+    dest: /etc/httpd/conf.d/00-status.conf
+    owner: root
+    group: root
+    mode: "0644"
+  when: ansible_os_family == "RedHat"
+  notify: Reload Apache
+
+- name: Deploy Apache server-status config (Debian family)
+  template:
+    src: server-status.conf.j2
+    dest: /etc/apache2/conf-available/00-status.conf
+    owner: root
+    group: root
+    mode: "0644"
+  when: ansible_os_family == "Debian"
+  notify: Reload Apache
+
+# Enable mod_status on Debian/Ubuntu
+- name: Enable mod_status (Debian/Ubuntu only)
+  command: a2enmod status
+  args:
+    creates: /etc/apache2/mods-enabled/status.load
+  when: ansible_os_family == "Debian"
+  notify: Reload Apache
+

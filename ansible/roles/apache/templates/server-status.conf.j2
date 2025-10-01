@@ -1,0 +1,14 @@
+# Enable extended status so /server-status?auto returns machine-readable stats
+ExtendedStatus On
+
+<Location "/server-status">
+    SetHandler server-status
+    # allow only localhost and (optionally) the monitoring server
+    Require ip 127.0.0.1
+{% if monitoring_server_ip is defined and monitoring_server_ip | length > 0 %}
+    Require ip {{ monitoring_server_ip }}
+{% endif %}
+    # Ensure this location is not proxied by any ProxyPass rules
+    ProxyPass !
+</Location>
+
