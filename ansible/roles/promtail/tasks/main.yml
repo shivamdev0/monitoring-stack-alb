@@ -1,96 +1,106 @@
 ---
-# Promtail config (push to monitoring private IP on /loki/api/v1/push)
-
-- name: Ensure promtail user
+- name: Ensure promtail user exists
+  become: yes
   user:
     name: promtail
     system: yes
     shell: /sbin/nologin
+    create_home: no
 
-- name: Add promtail to adm group (read /var/log/*.log)
-  user:
-    name: promtail
-    groups: adm
-    append: yes
-
-- name: Create promtail dir
+- name: Ensure necessary directories exist
+  become: yes
   file:
-    path: /etc/promtail
+    path: "{{ item.path }}"
     state: directory
-    owner: promtail
-    group: promtail
-    mode: "0755"
+    owner: "{{ item.owner | default('promtail') }}"
+    group: "{{ item.group | default('promtail') }}"
+    mode: "{{ item.mode | default('0755') }}"
+  loop:
+    - { path: /etc/promtail, owner: promtail, group: promtail, mode: "0755" }
+    - { path: /var/lib/promtail, owner: promtail, group: promtail, mode: "0755" }
 
-- name: Download Promtail
+- name: Ensure apache log dir exists and perms (so promtail can read)
+  become: yes
+  file:
+    path: /var/log/httpd
+    state: directory
+    mode: "0755"
+    owner: root
+    group: root
+
+- name: Ensure apache log files readable (if present)
+  become: yes
+  file:
+    path: "{{ item }}"
+    state: file
+    mode: "0644"
+    owner: root
+    group: root
+  loop:
+    - /var/log/httpd/access_log
+    - /var/log/httpd/error_log
+  ignore_errors: yes
+
+- name: Download Promtail zip (if not already)
+  become: yes
   get_url:
     url: "https://github.com/grafana/loki/releases/download/v2.9.6/promtail-linux-amd64.zip"
     dest: /tmp/promtail.zip
     mode: "0644"
+  register: get_promtail
+  changed_when: get_promtail.status | default(0) != 200 and get_promtail.changed
 
-- name: Extract Promtail
+- name: Extract Promtail binary
+  become: yes
   unarchive:
     src: /tmp/promtail.zip
     dest: /usr/local/bin/
     remote_src: yes
     mode: "0755"
 
-- name: Write /etc/promtail/config.yml
-  copy:
+- name: Ensure promtail binary ownership
+  become: yes
+  file:
+    path: /usr/local/bin/promtail-linux-amd64
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Write promtail config from template
+  become: yes
+  template:
+    src: config.yml.j2
     dest: /etc/promtail/config.yml
     owner: promtail
     group: promtail
     mode: "0644"
-    content: |
-      server:
-        http_listen_port: 9080
-        grpc_listen_port: 0
-
-      clients:
-        - url: http://{{ hostvars[groups['role_monitoring'][0]].private_ip_address }}:3100/loki/api/v1/push
-
-      positions:
-        filename: /var/lib/promtail/positions.yaml
-
-      scrape_configs:
-        - job_name: varlogs
-          static_configs:
-            - targets: [localhost]
-              labels:
-                job: varlogs
-                host: {{ inventory_hostname }}
-                __path__: /var/log/*.log
-        # Optional: enable journald on AL2023
-        # - job_name: systemd-journal
-        #   journal:
-        #     path: /var/log/journal
-        #   labels:
-        #     job: systemd-journal
-        #     host: {{ inventory_hostname }}
   notify: Restart Promtail
 
-- name: Install promtail systemd unit
-  copy:
+- name: Write systemd unit file from template
+  become: yes
+  template:
+    src: promtail.service.j2
     dest: /etc/systemd/system/promtail.service
+    owner: root
+    group: root
     mode: "0644"
-    content: |
-      [Unit]
-      Description=Promtail
-      After=network.target
-
-      [Service]
-      User=promtail
-      Group=promtail
-      ExecStart=/usr/local/bin/promtail-linux-amd64 -config.file=/etc/promtail/config.yml
-      Restart=always
-
-      [Install]
-      WantedBy=multi-user.target
   notify:
     - Daemon Reload
     - Restart Promtail
 
-- name: Enable Promtail
+- name: Ensure positions file exists and owned by promtail
+  become: yes
+  file:
+    path: /var/lib/promtail/positions.yaml
+    state: touch
+    owner: promtail
+    group: promtail
+    mode: "0644"
+
+- name: Ensure promtail service enabled and started
+  become: yes
   systemd:
     name: promtail
     enabled: yes
+    state: started
 

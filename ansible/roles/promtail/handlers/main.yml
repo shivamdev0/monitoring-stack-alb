@@ -1,9 +1,11 @@
 ---
 - name: Daemon Reload
+  become: yes
   systemd:
     daemon_reload: yes
 
 - name: Restart Promtail
+  become: yes
   systemd:
     name: promtail
     state: restarted

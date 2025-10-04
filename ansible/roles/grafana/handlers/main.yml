@@ -1,7 +1,9 @@
 ---
-- name: Restart Grafana
-  systemd:
-    name: grafana
+# roles/grafana/handlers/main.yml
+- name: restart grafana
+  become: true
+  ansible.builtin.systemd:
+    name: grafana-server          # change to grafana-server if needed
     state: restarted
     enabled: yes
 

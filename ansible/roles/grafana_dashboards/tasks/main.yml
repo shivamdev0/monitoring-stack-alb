@@ -1,5 +1,4 @@
 ---
-
 # 1️⃣ Check dashboard files on Ansible control node
 - name: Check dashboard files exist locally
   stat:
@@ -7,6 +6,7 @@
   loop:
     - node_exporter_dashboard.json
     - loki_logs_dashboard.json
+    - monitoring_dashboard.json
   register: dashboards
   delegate_to: localhost
   run_once: true
@@ -23,8 +23,15 @@
 
 # 2️⃣ Import dashboards into Grafana (remote server)
 - name: Import Grafana dashboards
+  vars:
+    api_base: "{{ (grafana_api_url | default('http://localhost:3000')) | regex_replace('/$','') }}"
+  loop:
+    - node_exporter_dashboard.json
+    - loki_logs_dashboard.json
+  loop_control:
+    label: "{{ item }}"
   uri:
-    url: "http://localhost:3000/api/dashboards/db"
+    url: "{{ api_base }}/api/dashboards/db"
     method: POST
     user: "{{ grafana_user }}"
     password: "{{ grafana_password }}"
@@ -35,21 +42,25 @@
     body:
       dashboard: "{{ lookup('file', role_path + '/files/' + item) | from_json }}"
       overwrite: true
-  loop:
-    - node_exporter_dashboard.json
-    - loki_logs_dashboard.json
+      folderId: 0
+    status_code: 200
+    validate_certs: "{{ grafana_validate_certs | default(true) }}"
   register: grafana_dash_results
+  retries: 3
+  delay: 2
+  until: grafana_dash_results is succeeded
 
 # 3️⃣ Debug output
 - name: Show dashboard import results
   debug:
     var: grafana_dash_results
 
-#new-add
-
+# 4️⃣ Import Monitoring Overview dashboard
 - name: Import Monitoring Overview dashboard
+  vars:
+    api_base: "{{ (grafana_api_url | default('http://localhost:3000')) | regex_replace('/$','') }}"
   uri:
-    url: "http://localhost:3000/api/dashboards/db"
+    url: "{{ api_base }}/api/dashboards/db"
     method: POST
     user: "{{ grafana_user }}"
     password: "{{ grafana_password }}"
@@ -58,7 +69,13 @@
       Content-Type: "application/json"
     body_format: json
     body:
-      dashboard: "{{ lookup('file', 'files/monitoring_dashboard.json') | from_json }}"
+      dashboard: "{{ lookup('file', role_path + '/files/monitoring_dashboard.json') | from_json }}"
       overwrite: true
+      folderId: 0
     status_code: 200
+    validate_certs: "{{ grafana_validate_certs | default(true) }}"
+  register: monitoring_dashboard_result
+  retries: 3
+  delay: 2
+  until: monitoring_dashboard_result is succeeded
 

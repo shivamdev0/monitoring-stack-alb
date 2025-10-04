@@ -1,12 +1,15 @@
 server:
+  http_listen_address: 0.0.0.0
   http_listen_port: 9080
   grpc_listen_port: 0
 
+# where promtail saves offsets
 positions:
   filename: /var/lib/promtail/positions.yaml
 
+# Loki client - prefer explicit loki_url variable, fallback to first host in role_monitoring
 clients:
-  - url: {{ loki_url | default('http://localhost:3100/loki/api/v1/push') }}
+  - url: "{{ loki_url | default('http://' + (hostvars[groups['role_monitoring'][0]].private_ip_address if groups['role_monitoring'] is defined and groups['role_monitoring']|length > 0 else 'localhost') + ':3100/loki/api/v1/push') }}"
 
 scrape_configs:
   - job_name: apache_access
@@ -14,40 +17,25 @@ scrape_configs:
       - targets: [ "localhost" ]
         labels:
           job: apache_access
-          app: {{ promtail_common_labels.app | default('webapp') | to_json }}
-          env: {{ promtail_common_labels.env | default('prod') | to_json }}
-          __path__: {{ apache_access_log | default('/var/log/apache2/access.log') }}
-    pipeline_stages:
-      - regex:
-          expression: '^(?P<client_ip>[^ ]+) [^ ]+ [^ ]+ \[(?P<ts>[^\]]+)\] "(?P<method>\S+) (?P<path>[^"]*?) (?P<proto>\S+)" (?P<status>\d{3}) (?P<bytes>(?:\d+|-)) "(?P<referrer>[^"]*)" "(?P<user_agent>[^"]*)"(?: (?P<req_time_us>\d+))?'
-      - timestamp:
-          source: ts
-          format: '02/Jan/2006:15:04:05 -0700'
-      - labels:
-          client_ip:
-          method:
-          path:
-          status:
-      - convert:
-          status: { type: int }
-          bytes:  { type: int }
-          req_time_us: { type: int }
+          host: "{{ inventory_hostname }}"
+          __path__: /var/log/httpd/access_log
 
   - job_name: apache_error
     static_configs:
       - targets: [ "localhost" ]
         labels:
           job: apache_error
-          app: {{ promtail_common_labels.app | default('webapp') | to_json }}
-          env: {{ promtail_common_labels.env | default('prod') | to_json }}
-          __path__: {{ apache_error_log | default('/var/log/apache2/error.log') }}
-    pipeline_stages:
-      - regex:
-          expression: '^\[(?P<ts>[^\]]+)\] \[(?P<module>[^\]]+)\] \[(?P<pidtid>[^\]]+)\](?: \[client (?P<client>[^\]]+)\])? (?P<msg>.*)$'
-      - timestamp:
-          source: ts
-          format: 'Mon Jan _2 15:04:05 2006'
-      - labels:
-        module:
-        client:
+          host: "{{ inventory_hostname }}"
+          __path__: /var/log/httpd/error_log
+
+  - job_name: varlogs
+    static_configs:
+      - targets: [ "localhost" ]
+        labels:
+          job: varlogs
+          host: "{{ inventory_hostname }}"
+          __path__: /var/log/*.log
+
+# Note: pipeline_stages intentionally omitted here to first ensure raw logs ingestion.
+# Add parsing stages later (regex/timestamp/labels) once raw logs work in Loki.
 

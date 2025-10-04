@@ -35,11 +35,13 @@
     enabled: yes
     state: started
 
-- name: Wait for Grafana to start (local bind)
+# Use grafana_api_url variable (no trailing slash). Set in group_vars/all.yml
+- name: Wait for Grafana to start (configured URL)
   uri:
-    url: "http://localhost:3000/api/health"
+    url: "{{ (grafana_api_url | default('http://localhost:3000')) | regex_replace('/$','') }}/api/health"
     method: GET
     status_code: 200
+    validate_certs: "{{ grafana_validate_certs | default(false) }}"
   register: grafana_status
   retries: 20
   delay: 5
@@ -48,7 +50,7 @@
 # Set new Grafana admin password (first run only)
 - name: Configure Grafana admin password
   uri:
-    url: "http://localhost:3000/api/admin/users/1/password"
+    url: "{{ (grafana_api_url | default('http://localhost:3000')) | regex_replace('/$','') }}/api/admin/users/1/password"
     method: PUT
     user: "{{ grafana_user }}"
     password: "{{ grafana_old_password }}"
@@ -59,6 +61,7 @@
     body:
       password: "{{ grafana_password }}"
     status_code: 200
+    validate_certs: "{{ grafana_validate_certs | default(false) }}"
   register: grafana_pass_reset
   failed_when: false
   changed_when: grafana_pass_reset.status == 200
@@ -66,7 +69,7 @@
 # Add Prometheus datasource (default)
 - name: Add Prometheus datasource
   uri:
-    url: "http://localhost:3000/api/datasources"
+    url: "{{ (grafana_api_url | default('http://localhost:3000')) | regex_replace('/$','') }}/api/datasources"
     method: POST
     user: "{{ grafana_user }}"
     password: "{{ grafana_password }}"
@@ -81,11 +84,12 @@
       url: "http://localhost:9090"
       isDefault: true
     status_code: [200, 409]
+    validate_certs: "{{ grafana_validate_certs | default(false) }}"
 
 # Add CloudWatch datasource (optional)
 - name: Configure Grafana CloudWatch datasource
   uri:
-    url: "http://localhost:3000/api/datasources"
+    url: "{{ (grafana_api_url | default('http://localhost:3000')) | regex_replace('/$','') }}/api/datasources"
     method: POST
     user: "{{ grafana_user }}"
     password: "{{ grafana_password }}"
@@ -101,11 +105,12 @@
         authType: "default"
         defaultRegion: "me-central-1"
     status_code: [200, 409]
+    validate_certs: "{{ grafana_validate_certs | default(false) }}"
 
 # Add Loki datasource
 - name: Configure Grafana Loki datasource
   uri:
-    url: "http://localhost:3000/api/datasources"
+    url: "{{ (grafana_api_url | default('http://localhost:3000')) | regex_replace('/$','') }}/api/datasources"
     method: POST
     user: "{{ grafana_user }}"
     password: "{{ grafana_password }}"
@@ -120,4 +125,5 @@
       url: "http://localhost:3100"
       isDefault: false
     status_code: [200, 409]
+    validate_certs: "{{ grafana_validate_certs | default(false) }}"
 

@@ -37,3 +37,5 @@ scrape_configs:
 {% for host in groups['role_client'] | default([]) %}
           - "{{ hostvars[host]['private_ip_address'] }}:9117"
 {% endfor %}
+
+
