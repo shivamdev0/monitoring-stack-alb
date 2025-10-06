@@ -3,39 +3,60 @@ global:
   evaluation_interval: 15s
 
 scrape_configs:
-  # Scrape Prometheus itself
   - job_name: "prometheus"
     static_configs:
       - targets: ["localhost:9090"]
 
-  # Scrape Node Exporter from all clients (PRIVATE IP)
-  - job_name: "node_exporter"
-    static_configs:
-      - targets:
-{% for host in groups['role_client'] | default([]) %}
-          - "{{ hostvars[host]['private_ip_address'] }}:9100"
-{% endfor %}
+  # Dynamic EC2 discovery - node_exporter
+  - job_name: "ec2-node-exporter"
+    ec2_sd_configs:
+      - region: me-central-1
+    relabel_configs:
+      - source_labels: [__meta_ec2_tag_Monitoring]
+        regex: enabled
+        action: keep
+      - source_labels: [__meta_ec2_tag_Role]
+        regex: client
+        action: keep
+      - source_labels: [__meta_ec2_private_ip]
+        target_label: __address__
+        replacement: $1:9100
+    metrics_path: /metrics
 
-  # Scrape Loki metrics
+  # Dynamic EC2 discovery - promtail
+  - job_name: "ec2-promtail"
+    ec2_sd_configs:
+      - region: me-central-1
+    relabel_configs:
+      - source_labels: [__meta_ec2_tag_Monitoring]
+        regex: enabled
+        action: keep
+      - source_labels: [__meta_ec2_tag_Role]
+        regex: client
+        action: keep
+      - source_labels: [__meta_ec2_private_ip]
+        target_label: __address__
+        replacement: $1:9080
+    metrics_path: /metrics
+
+  # Dynamic EC2 discovery - apache exporter
+  - job_name: "ec2-apache-exporter"
+    ec2_sd_configs:
+      - region: me-central-1
+    relabel_configs:
+      - source_labels: [__meta_ec2_tag_Monitoring]
+        regex: enabled
+        action: keep
+      - source_labels: [__meta_ec2_tag_Role]
+        regex: client
+        action: keep
+      - source_labels: [__meta_ec2_private_ip]
+        target_label: __address__
+        replacement: $1:9117
+    metrics_path: /metrics
+
+  # Loki on monitoring server
   - job_name: "loki"
     static_configs:
       - targets: ["localhost:3100"]
-
-  # Scrape Promtail metrics from all clients (PRIVATE IP)
-  - job_name: "promtail"
-    static_configs:
-      - targets:
-{% for host in groups['role_client'] | default([]) %}
-          - "{{ hostvars[host]['private_ip_address'] }}:9080"
-{% endfor %}
-  
-
-  # Scrape Apache Exporter metrics from all clients (PRIVATE IP)
-  - job_name: "apache_exporter"
-    static_configs:
-      - targets:
-{% for host in groups['role_client'] | default([]) %}
-          - "{{ hostvars[host]['private_ip_address'] }}:9117"
-{% endfor %}
-
 
